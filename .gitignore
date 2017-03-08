@@ -27,3 +27,11 @@
 *.exe
 *.out
 *.app
+
+# Egm 2008 (global) grid files
+*Dg01_cnt2.5x2.5_EGM08_to2190_WGS84_ell_nh*
+*xi_cnt2.5x2.5_EGM08_to2190_WGS84_ell_nh*
+*eta_cnt2.5x2.5_EGM08_to2190_WGS84_ell_nh*
+*Dg01_mean5.0x5.0_EGM08_to2190_WGS84_ell_nh*
+*WGS84*
+*EGM08*
