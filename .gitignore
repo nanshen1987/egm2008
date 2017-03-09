@@ -35,3 +35,7 @@
 *Dg01_mean5.0x5.0_EGM08_to2190_WGS84_ell_nh*
 *WGS84*
 *EGM08*
+
+# Folders
+temp*
+*endian*

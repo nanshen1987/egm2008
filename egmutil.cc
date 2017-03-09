@@ -53,16 +53,28 @@ lpair longtitude_line(const dpair&);
 int cmd_parse(int, char* argc[], str_str_map&);
 //  Parse a region of type 'lat0/lat1/lon0/lon1' (i.e. a string)
 int limit_parser(const std::string&, double&, double&, double&, double&);
+//  perform bilinear interpolation
+double
+bilinear_interpolation(const double lat, const double lon, 
+    const double lat1, const double lat2, 
+    const double lon1, const double lon2,
+    const double q12, const double q22, const double q11, const double q21);
 // help message, usage and epilog
 void help();
 void usage();
 void epilog();
+
+//  for easy-use
+struct Point { double lat, lon, val; };
 
 int main(int argc, char* argv[])
 {
     //  a dictionary with (any) default options
     str_str_map arg_dict;
     arg_dict["region"] = std::string( "90.0e0/-90.0e0/0.0e0/360.0e0" );
+
+    //  a list of points to interpolate at.
+    //  std::vector<Point> points {};
 
     //  Parse command line arguments to the dictionary
     int status = cmd_parse(argc, argv, arg_dict);
@@ -129,7 +141,6 @@ int main(int argc, char* argv[])
     fin.seekg(0, std::ios::end);
     assert( fin.tellg() == nrowsg*ncolsg*sizeof(float)+nrowsg*2*sizeof(int) );
 
-
     //  get the region
     double st_lat{0.0}, e_lat{0.0}, st_lon{0.0}, e_lon{0.0};
     it = arg_dict.find("region");
@@ -141,9 +152,14 @@ int main(int argc, char* argv[])
     lpair  lat_lines, // starting and ending rows for given latitude region
            lon_lines; // starting and ending cols for given longtitude region
 
-    //  lines and columns that we are interested in (should be read)
-    lat_lines = latitude_line( {st_lat, e_lat} );
-    lon_lines = longtitude_line( {st_lon, e_lon} );
+    //  lines and columns that we are interested in (should be read); these
+    //+ functions may throw!
+    try {
+        lat_lines = latitude_line( {st_lat, e_lat} );
+        lon_lines = longtitude_line( {st_lon, e_lon} );
+    } catch (std::runtime_error& e) {
+        return 1;
+    }
 
     //  memory buffer for unwanted rows
     char data_row[row_bt_size];
@@ -275,6 +291,15 @@ latitude_line(const dpair& lat_limits)
     elimit = limit;
 #endif
 
+    //  in case the starting and ending limit is the same value (i.e. the input
+    //+ pair is one point), then the computed lines will be in opposite order
+    //+ (largest line number will be second). So, rearrange!
+    if (slat != elat && islat > ielat) {
+        std::cerr<<"\n[ERROR] Could not compute latitude lines properly!";
+        throw std::runtime_error("latitude_line() error");
+    }
+    if (islat > ielat) std::swap(islat, ielat);
+
 #ifdef DEBUG
     std::cout<<"\n** Actual latitude region: ["<<elimit<<", "<<slimit
         <<"] given limits: "<<elat<<", "<<slat;
@@ -334,6 +359,15 @@ longtitude_line(const dpair& lon_limits)
 #ifdef DEBUG
     elimit = limit;
 #endif
+
+    //  in case the starting and ending limit is the same value (i.e. the input
+    //+ pair is one point), then the computed lines will be in opposite order
+    //+ (largest line number will be second). So, rearrange!
+    if (slon != elon && islon > ielon) {
+        std::cerr<<"\n[ERROR] Could not compute longtitude lines properly!";
+        throw std::runtime_error("longtitude_line() error");
+    }
+    if (islon > ielon) std::swap(islon, ielon);
 
 #ifdef DEBUG
     std::cout<<"\n** Actual longtitude region: ["<<slimit<<", "<<elimit
@@ -435,6 +469,27 @@ limit_parser(const std::string& arg_str, double& lat0, double& lat1,
     lon1 = lary[3];
 
     return 0;
+}
+
+//  q12           q22     ^ latitude axis (y)
+//+   o----------o        |
+//+   |          |        |
+//+   |          |        |
+//+   |          |        |
+//+   o----------o        +---------> longtitude axis (x)
+//+ q11           q21
+//+
+double
+bilinear_interpolation(const double lat, const double lon, 
+    const double lat1, const double lat2, 
+    const double lon1, const double lon2,
+    const double q12, const double q22, const double q11, const double q21)
+{
+    // x-axis is longtitude
+    // y-axis is latitude
+    double f_xy1 = ((lon2-lon)/(lon2-lon1))*q11 + ((lon-lon1)/(lon2-lon1))*q21;
+    double f_xy2 = ((lon2-lon)/(lon2-lon1))*q12 + ((lon-lon1)/(lon2-lon1))*q22;
+    return ((lat2-lat)/(lat2-lat1))*f_xy1 + ((lat-lat1)/(lat2-lat1))*f_xy2;
 }
 
 void
