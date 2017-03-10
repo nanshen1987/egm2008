@@ -153,12 +153,13 @@ int main(int argc, char* argv[])
     //  lines and columns that we are interested in (should be read); these
     //+ functions may throw!
     try {
-//#if __GNUC__ > 5
+#if __GNUC__ > 5
         lat_lines = latitude_line( {st_lat, e_lat} );
         lon_lines = longtitude_line( {st_lon, e_lon} );
-//#else
-
-//#endif
+#else
+        lat_lines = latitude_line( std::make_tuple(st_lat, e_lat) );
+        lon_lines = longtitude_line( std::make_tuple(st_lon, e_lon) );
+#endif
     } catch (std::runtime_error& e) {
         return 1;
     }
