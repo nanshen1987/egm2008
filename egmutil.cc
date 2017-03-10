@@ -71,10 +71,8 @@ int main(int argc, char* argv[])
 {
     //  a dictionary with (any) default options
     str_str_map arg_dict;
-    arg_dict["region"] = std::string( "90.0e0/-90.0e0/0.0e0/360.0e0" );
-
-    //  a list of points to interpolate at.
-    //  std::vector<Point> points {};
+    arg_dict["region"]              = std::string( "90.0e0/-90.0e0/0.0e0/360.0e0" );
+    arg_dict["point_interpolation"] = std::string("n");
 
     //  Parse command line arguments to the dictionary
     int status = cmd_parse(argc, argv, arg_dict);
@@ -178,56 +176,102 @@ int main(int argc, char* argv[])
     std::cout.setf(std::ios::fixed, std::ios::floatfield);
     std::cout.precision(10);
 
-    //  go to the top of the file and start reading values. Note that at the
-    //+ begining and end of every row, the file has an integer record, denoting
-    //+ the length of data (this is a fortran thing...)
-    fin.seekg(0, std::ios::beg);
-    for (int i=0; i<std::get<0>(lat_lines); i++) //  read and ignore first rows
-    {                                            //+ outside the wanted region
-        fin.read(data_row, row_bt_size);         
-    }
-    for (int i=std::get<0>(lat_lines); i<=std::get<1>(lat_lines); i++)
-    {
-        fin.read(data_col, st_col_sz); //  read in the unwanted colunms
-        rlat = 90.e0 - i*dlatg - dlatg*0.5e0;  // compute latitude of row (degrees)
-        for (int j=std::get<0>(lon_lines); j<=std::get<1>(lon_lines); j++)
-        {
-            clon = j*dlong + dlong*0.5e0; // compute longtitude (degrees)
-            fin.read((char*)&val, sizeof(float));
-            *fp << "\n" << rlat << " " << clon << " " << val;
-#ifdef DEBUG
-            // in debug mode
-            ++values_read;
-            if (val < minval)
-            {
-                minval = val;
-                minlat = rlat;
-                minlon = clon;
-            }
-            if (val > maxval)
-            {
-                maxval = val;
-                maxlat = rlat;
-                maxlon = clon;
-            }
-#endif
+    //  we only read to interpolate, not extract values
+    //  ----------------------------------------------------------------------
+    if (arg_dict["point_interpolation"] == "y") {
+        Point* nodes = new Point[4];
+        int k {0};
+        fin.seekg(0, std::ios::beg);
+        for (int i=0; i<std::get<0>(lat_lines); i++) //  read and ignore first rows
+        {                                            //+ outside the wanted region
+            fin.read(data_row, row_bt_size);         
         }
-        fin.read(data_col, e_col_sz); //  read ending unwanted cols
+        for (int i=std::get<0>(lat_lines); i<=std::get<1>(lat_lines); i++)
+        {
+            fin.read(data_col, st_col_sz); //  read in the unwanted colunms
+            rlat = 90.e0 - i*dlatg - dlatg*0.5e0;  // compute latitude of row (degrees)
+            for (int j=std::get<0>(lon_lines); j<=std::get<1>(lon_lines); j++)
+            {
+                clon = j*dlong + dlong*0.5e0; // compute longtitude (degrees)
+                fin.read((char*)&val, sizeof(float));
+#ifdef DEBUG
+                *fp << "\n(node): " << rlat << " " << clon << " " << val;
+#endif
+                nodes[k].lat = rlat;
+                nodes[k].lon = clon;
+                nodes[k].val = val;
+                ++k;
+            }
+            fin.read(data_col, e_col_sz); //  read ending unwanted cols
+        }
+        assert(k==4);
+        double lon1{nodes[0].lon}, lon2{nodes[1].lon}, lat1{nodes[2].lat},
+               lat2{nodes[0].lat}, q12{nodes[0].val}, q22{nodes[1].val},
+               q11{nodes[2].val}, q21{nodes[3].val};
+        double x = bilinear_interpolation(st_lat, st_lon, lat1, lat2, lon1, 
+            lon2, q12, q22, q11, q21);
+        delete[] nodes;
+        *fp << "\n" << st_lat << " " << st_lon << " " << x;
+    }
+    // ------------------------------------------------------------------------
+    // interpolation done!
+
+    //  we need to extract values, not interpolate
+    //  ----------------------------------------------------------------------
+    if (arg_dict["point_interpolation"] == "n") {
+        //  go to the top of the file and start reading values. Note that at the
+        //+ begining and end of every row, the file has an integer record, denoting
+        //+ the length of data (this is a fortran thing...)
+        fin.seekg(0, std::ios::beg);
+        for (int i=0; i<std::get<0>(lat_lines); i++) //  read and ignore first rows
+        {                                            //+ outside the wanted region
+            fin.read(data_row, row_bt_size);         
+        }
+        for (int i=std::get<0>(lat_lines); i<=std::get<1>(lat_lines); i++)
+        {
+            fin.read(data_col, st_col_sz); //  read in the unwanted colunms
+            rlat = 90.e0 - i*dlatg - dlatg*0.5e0;  // compute latitude of row (degrees)
+            for (int j=std::get<0>(lon_lines); j<=std::get<1>(lon_lines); j++)
+            {
+                clon = j*dlong + dlong*0.5e0; // compute longtitude (degrees)
+                fin.read((char*)&val, sizeof(float));
+                *fp << "\n" << rlat << " " << clon << " " << val;
+#ifdef DEBUG
+                // in debug mode
+                ++values_read;
+                if (val < minval)
+                {
+                    minval = val;
+                    minlat = rlat;
+                    minlon = clon;
+                }
+                if (val > maxval)
+                {
+                    maxval = val;
+                    maxlat = rlat;
+                    maxlon = clon;
+                }
+#endif
+            }
+            fin.read(data_col, e_col_sz); //  read ending unwanted cols
+        }
     }
 
     //  dealocate memory
     delete[] data_col;
 
 #ifdef DEBUG
-    std::cout << "\nInput file:        "<<arg_dict["input_file"];
-    std::cout << "\n# of values read:  "<<values_read;
-    std::cout << "\nMinimum value:     "<<minval;
-    std::cout << "\nLat of min value:  "<<minlat;
-    std::cout << "\nLon of min value:  "<<minlon;
-    std::cout << "\nMaximim value:     "<<maxval;
-    std::cout << "\nLat of max value:  "<<maxlat;
-    std::cout << "\nLon of max value:  "<<maxlon;
-    std::cout << "\nInput buf position "<<fin.tellg();
+    if (arg_dict["point_interpolation"] == "n") {
+        std::cout << "\nInput file:        "<<arg_dict["input_file"];
+        std::cout << "\n# of values read:  "<<values_read;
+        std::cout << "\nMinimum value:     "<<minval;
+        std::cout << "\nLat of min value:  "<<minlat;
+        std::cout << "\nLon of min value:  "<<minlon;
+        std::cout << "\nMaximim value:     "<<maxval;
+        std::cout << "\nLat of max value:  "<<maxlat;
+        std::cout << "\nLon of max value:  "<<maxlon;
+        std::cout << "\nInput buf position "<<fin.tellg();
+    }
 #endif
 
     std::cout<<"\n";
@@ -388,8 +432,11 @@ cmd_parse(int argv, char* argc[], str_str_map& smap)
             usage();
             std::cout << "\n";
             epilog();
+            std::cout << "\n";
             return 0;
     }
+
+    bool r_switch{false}, p_switch{false};
 
     for (int i = 1; i < argv; i++)
     {
@@ -400,6 +447,7 @@ cmd_parse(int argv, char* argc[], str_str_map& smap)
             usage();
             std::cout << "\n";
             epilog();
+            std::cout << "\n";
             return -1;
         }
         else if ( !std::strcmp(argc[i], "-o") )
@@ -412,6 +460,29 @@ cmd_parse(int argv, char* argc[], str_str_map& smap)
         {
             if (i+1 >= argv) { return 1; }
             smap["region"] = std::string(argc[i+1]);
+            r_switch = true;
+            if (p_switch) {
+                std::cerr<<"\n[ERROR] Cannot have both \"-r\" and \"-p\" switches.";
+                return 1;
+            }
+            ++i;
+        }
+        else if ( !std::strcmp(argc[i], "-p") )
+        {
+            if (i+1 >= argv) { return 1; }
+            std::string token = std::string(argc[i+1]);
+            auto j = token.find(",");
+            if (j == std::string::npos) { return 1; }
+            if (j != token.rfind(",") ) { return 1; }
+            auto lat = token.substr(0, j);
+            auto lon = token.substr(j+1);
+            smap["region"] = (lat+"/"+lat+"/"+lon+"/"+lon);
+            smap["point_interpolation"] = std::string{"y"};
+            p_switch = true;
+            if (r_switch) {
+                std::cerr<<"\n[ERROR] Cannot have both \"-r\" and \"-p\" switches.";
+                return 1;
+            }
             ++i;
         }
         else if ( !std::strcmp(argc[i], "-i") )
@@ -521,7 +592,12 @@ usage()
     " -r [region]\n"
     "\tSpecify the region to extract from the global grid. The region should be\n"
     "\tgiven as \"min_lat/max_lat/min_lon/max_lon\", where all quantities are\n"
-    "\tin decimal degrees.";
+    "\tin decimal degrees.\n"
+    " -p [point]\n"
+    "\tCompute the value (xi, eta or Dg) at a given point. The point is given\n"
+    "\tas: \"latitude,longtitude\" in decimal degrees. The program will use the\n"
+    "\tbilinear interpolation algorithm to compute the value at the given point\n"
+    "\tbased on the surrounding grid.";
 
     return;
 }
