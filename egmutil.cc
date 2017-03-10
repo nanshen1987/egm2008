@@ -567,10 +567,15 @@ void
 help()
 {
     std::cout<<"\n";
-    std::cout<<"\nProgram egmutil Version 1.0-0";
-    std::cout<<"\nRead in EGM 2008 related grid files and extract a specific\n"
-    "region (given by latitude/longtitude limits in degrees). For more information\n"
-    "see http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm2008/anomalies_dov.html";
+    std::cout<<"\nProgram egmutil Version 1.0-0\n";
+    std::cout<<"\nRead in EGM 2008 related grid files and extract a specific region\n"
+    "(given by latitude/longtitude limits in degrees). For more information, see\n"
+    "http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm2008/anomalies_dov.html\n"
+    "The program can also be used to interpolate at a given point.\n"
+    "Note that the input files (as published) are written using BIG ENDIAN binary\n"
+    "representation. A conversion to LITTLE INDIAN may be needed depending on the\n"
+    "host machine. To perform the conversion, one can use the \"make_SE.f\" utility\n"
+    "see http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm2008/endian_convert.html";
     return;
 }
 void
