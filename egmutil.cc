@@ -153,8 +153,12 @@ int main(int argc, char* argv[])
     //  lines and columns that we are interested in (should be read); these
     //+ functions may throw!
     try {
+//#if __GNUC__ > 5
         lat_lines = latitude_line( {st_lat, e_lat} );
         lon_lines = longtitude_line( {st_lon, e_lon} );
+//#else
+
+//#endif
     } catch (std::runtime_error& e) {
         return 1;
     }
@@ -312,6 +316,7 @@ latitude_line(const dpair& lat_limits)
     if (slat < elat) std::swap(slat, elat);
     
     if (slat >= beg_lat) {
+        flat  = 0;
         islat = 0;
     } else {
         flat = (90.e0 - dlatg*0.5e0 - slat) / dlatg + 1;
@@ -327,6 +332,7 @@ latitude_line(const dpair& lat_limits)
         flat = (90.e0 - dlatg*0.5e0 - elat) / dlatg;
         ielat = static_cast<long>(flat);
     } else {
+        flat  = 0;
         ielat = nrowsg-1;
     }
     limit = 90.e0 - ielat*dlatg - dlatg*0.5e0;
@@ -349,7 +355,12 @@ latitude_line(const dpair& lat_limits)
         <<"] given limits: "<<elat<<", "<<slat;
     std::cout<<"\n** Reading lats from line: "<<islat<<" to line: "<<ielat;
 #endif
+
+#if __GNUC__ > 5
     return {islat, ielat};
+#else
+    return std::make_tuple(islat, ielat);
+#endif
 }
 
 //  Given a longtitude range, return the (inclusive) row numbers they
@@ -381,6 +392,7 @@ longtitude_line(const dpair& lon_limits)
     if (slon > elon) std::swap(slon, elon);
 
     if (slon <= beg_lon) {
+        flon  = 0;
         islon = 0;
     } else {
         flon = (slon - dlong*0.5e0) / dlong + 1;
@@ -396,6 +408,7 @@ longtitude_line(const dpair& lon_limits)
         flon = (elon - dlong*0.5e0) / dlong;
         ielon = static_cast<long>(flon);
     } else {
+        flon  = 0;
         ielon = ncolsg-1;
     }
     limit = ielon*dlong + dlong*0.5e0;
@@ -418,7 +431,12 @@ longtitude_line(const dpair& lon_limits)
         <<"] given limits: "<<slon<<", "<<elon;
     std::cout<<"\n** Reading lons from line: "<<islon<<" to line: "<<ielon;
 #endif
+
+#if __GNUC__ > 5
     return {islon, ielon};
+#else
+    return std::make_tuple(islon, ielon);
+#endif
 }
 
 //  Parse command line arguments and assigne them to the given dictionary.
